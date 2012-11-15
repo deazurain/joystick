@@ -1,68 +1,105 @@
 /* todo: 
- * parse data
  * provide events for button presses/axis movements/init events
  * automatic reconnect, currently just throws exception on disconnect
  */
 
-fs = require('fs');
+var 
+	fs = require('fs'),
+	EventEmitter = require('events').EventEmitter;
 
-exports = module.exports = Joystick = function() {};
+exports = module.exports = Joystick;
 
-var p = Joystick.prototype;	// public properties
-var h = {}; // private properties (have to be bound)
-
-// bind function that prepends this as an argument
-var bind = function(o, f) {
-	return function() {
-		Array.prototype.unshift.call(arguments, o);
-		return f.apply(o, arguments);
-	};
+/* Constructor */
+function Joystick() {
+	EventEmitter.call(this);
 };
 
-/* CONSTANTS */
-p.EVENT_BUTTON = 0x01 /* button pressed/released */
-p.EVENT_AXIS   = 0x02 /* joystick moved */
-p.EVENT_INIT   = 0x80 /* initial state of device */
+Joystick.super_ = EventEmitter;
+Joystick.prototype = Object.create(EventEmitter, {
+	constructor: { value: Joystick, enumberable: false }
+});
 
-/* PUBLIC */
-p.listen = function(device, callback) {
-	var self = this;
-	self.device = device;
-	self.stream = fs.createReadStream(self.device, 
-			{	flags: "r", 
-				bufferSize: 8 });
-	if(callback) {
-		self.stream.on('open', callback);
-	}
-	self.stream.on('data', bind(self, h.data));
-	self.stream.on('end', bind(self, h.end));
-	self.stream.on('error', bind(self, h.error));
-	self.stream.on('close', bind(self, h.close));
-	return self
+var prototype = Joystick.prototype;
+
+/* Constants */
+prototype.EVENT_BUTTON = 0x01 /* button pressed/released */
+prototype.EVENT_AXIS   = 0x02 /* joystick moved */
+prototype.EVENT_INIT   = 0x80 /* initial state of device */
+
+/* Public */
+prototype.log = function() {
+	Array.prototype.unshift.call(arguments, '[Joystick]');
+	console.log.apply(console.log, arguments);
 }
 
-p.close = function(callback) {
-	var self = this;
-	self.stream.close(callback);
-	return self;
+prototype.listen = function(device, callback) {
+	var stream_options = {
+		flags: "r",
+		bufferSize: 8
+	};
+
+	var stream = fs.createReadStream(device, stream_options);
+
+	if(callback) {
+		stream.on('open', callback);
+	}
+	stream.on('data', data.bind(this));
+	stream.on('end', end.bind(this));
+	stream.on('error', error.bind(this));
+	stream.on('close', close.bind(this));
+
+	this.device = device;
+	this.stream = stream;
+	return this;
+}
+
+prototype.close = function(callback) {
+	this.stream.close(callback);
+	return this;
 };
 
-/* PRIVATE */
-h.data = function(self, data) {
-	console.log('data', data);
+prototype.parse = function(data) {
+	var e = {
+		time: data.readUInt32LE(0),
+		value: data.readInt16LE(4),
+		type: data.readUInt8(6),
+		number: data.readUInt8(7)
+	};
+	if(e.type & this.EVENT_INIT) {
+		e.init = true;
+		e.type -= this.EVENT_INIT;
+	}
+	else {
+		e.init = false;
+	}
+	return e;
 };
 
-h.end = function(self) {
-	console.log('end');
+/* Private */
+data = function(data) {
+	var e = this.parse(data);
+	var type = e.type;
+	delete e.type;
+	switch(type) {
+		case this.EVENT_BUTTON:
+			this.emit('button', e);
+			break;
+		case this.EVENT_AXIS:
+			this.emit('axis', e);
+			break;
+	}
 };
 
-h.error = function(self, exception) {
-	console.log('error', exception);
+end = function() {
+	this.log('end');
+};
+
+error = function(exception) {
+	this.log('error', exception);
 	throw exception;
 };
 
-h.close = function(self) {
-	console.log('close');
+close = function() {
+	this.log('close');
 };
-
 
