@@ -22,7 +22,11 @@ var buttons = {
 	16: 'connect'
 };
 
-j.listen("./js0out");
+j.listen("/dev/input/js0", function(fd) {
+	console.log('Number of buttons is ' + j.buttons);
+	console.log('Number of axes is ' + j.axes);
+	console.log('Name of joystick is ' + j.name);
+});
 
 j.on('button', function(e) {
 	console.log(buttons[e.number] + ' ' + (e.value ? 'pressed' : 'released'));

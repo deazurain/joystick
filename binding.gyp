@@ -9,6 +9,9 @@
 		},{
 			"target_name": "bb", 
 			"sources": ["src/bb.cc"]
+		},{
+			"target_name": "joystick",
+			"sources": ["src/joystick.cc"]
 		}
 	]
 }
